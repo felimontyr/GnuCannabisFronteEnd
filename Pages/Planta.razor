@@ -1,0 +1,286 @@
+@page "/planta"
+@using System.Collections.Generic
+@using Services
+@inject ServicioEntidad servicioEntidad
+@inject IJSRuntime JSRuntime
+@inject NavigationManager navegacionManager
+
+<h3>Gestión de Plantas</h3>
+
+@if (!string.IsNullOrEmpty(mensaje))
+{
+    <div class="alert alert-info">@mensaje</div>
+}
+
+<div class="mb-3">
+    <label for="fechaPlantacion">Fecha de plantación:</label>
+    <input id="fechaPlantacion" type="date" class="form-control mb-2" @bind="nuevaFechaPlantacion"
+           title="Seleccione la fecha de plantación" placeholder="Fecha" />
+
+    <label for="etapa">Etapa actual:</label>
+    <select id="etapa" class="form-select mb-2" @bind="nuevaEtapaActual" title="Etapa actual">
+        <option value="">Seleccione una etapa</option>
+        @foreach (var etapa in etapasDisponibles)
+        {
+            <option value="@etapa.Key">@etapa.Value</option>
+        }
+    </select>
+
+    <label for="estado">Estado:</label>
+    <select id="estado" class="form-select mb-2" @bind="nuevoEstado" title="Estado de la planta">
+        <option value="">Seleccione un estado</option>
+        @foreach (var estado in estadosDisponibles)
+        {
+            <option value="@estado.Key">@estado.Value</option>
+        }
+    </select>
+
+    <label for="cultivo">Cultivo asociado:</label>
+    <select id="cultivo" class="form-select mb-2" @bind="nuevoCultivoId" title="Seleccione un cultivo">
+        <option value="">Seleccione un cultivo</option>
+        @foreach (var cultivo in cultivos)
+        {
+            <option value="@cultivo["id"]">@cultivo["nombre"]</option>
+        }
+    </select>
+
+    <button class="btn btn-success mt-2" @onclick="CrearPlanta">Crear</button>
+</div>
+
+<h4>Plantas registradas</h4>
+
+@if (plantas.Count == 0)
+{
+    <p>No hay plantas registradas.</p>
+}
+else
+{
+    <ul class="list-group">
+        @foreach (var planta in plantas)
+        {
+            <li class="list-group-item">
+                @if (plantaEditarId == planta["id"].ToString())
+                {
+                    <div>
+                        <label>Fecha plantación:</label>
+                        <input type="date" class="form-control mb-1" @bind="plantaEditarFecha" title="Fecha de plantación" />
+
+                        <label>Etapa actual:</label>
+                        <select class="form-select mb-2" @bind="plantaEditarEtapa" title="Etapa actual">
+                            @foreach (var etapa in etapasDisponibles)
+                            {
+                                <option value="@etapa.Key">@etapa.Value</option>
+                            }
+                        </select>
+
+                        <label>Estado:</label>
+                        <select class="form-select mb-2" @bind="plantaEditarEstado" title="Estado de la planta">
+                            @foreach (var estado in estadosDisponibles)
+                            {
+                                <option value="@estado.Key">@estado.Value</option>
+                            }
+                        </select>
+
+                        <label>Cultivo asociado:</label>
+                        <select class="form-select mb-2" @bind="plantaEditarCultivoId" title="Seleccione un cultivo">
+                            <option value="">Seleccione un cultivo</option>
+                            @foreach (var cultivo in cultivos)
+                            {
+                                <option value="@cultivo["id"]">@cultivo["nombre"]</option>
+                            }
+                        </select>
+
+                        <button class="btn btn-primary me-2" @onclick="() => GuardarEdicion(planta)">Guardar</button>
+                        <button class="btn btn-secondary" @onclick="CancelarEdicion">Cancelar</button>
+                    </div>
+                }
+                else
+                {
+                    <div>
+                        Plantada: @FormatFecha(planta["fecha_plantacion"])
+                        - Etapa: @etapasDisponibles.GetValueOrDefault(planta["etapa_actual"]?.ToString(), "Desconocida")
+                        - Estado: @estadosDisponibles.GetValueOrDefault(planta["estado"]?.ToString(), "Desconocido")
+                        <br />
+                        @if (planta.ContainsKey("cultivo_id"))
+                        {
+                            var cultivo = cultivos.FirstOrDefault(c => c["id"].ToString() == planta["cultivo_id"].ToString());
+                            <text>Cultivo: @cultivo?["nombre"]</text>
+                        }
+                        else
+                        {
+                            <text>Cultivo: No asignado</text>
+                        }
+                        <br />
+                        <button class="btn btn-sm btn-primary me-2" @onclick="() => IniciarEdicion(planta)">Editar</button>
+                        <button class="btn btn-sm btn-danger" @onclick="() => EliminarPlanta(planta)">Eliminar</button>
+                    </div>
+                }
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private const string PROYECTO = "proyecto";
+    private const string TABLA = "planta";
+
+    private List<Dictionary<string, object>> plantas = new();
+    private List<Dictionary<string, object>> cultivos = new();
+
+    private string mensaje = string.Empty;
+
+    // Crear
+    private DateTime nuevaFechaPlantacion = DateTime.Today;
+    private string nuevaEtapaActual = string.Empty;
+    private string nuevoEstado = string.Empty;
+    private string nuevoCultivoId = string.Empty;
+
+    // Editar
+    private string plantaEditarId = string.Empty;
+    private DateTime plantaEditarFecha = DateTime.Today;
+    private string plantaEditarEtapa = string.Empty;
+    private string plantaEditarEstado = string.Empty;
+    private string plantaEditarCultivoId = string.Empty;
+
+    private Dictionary<string, string> etapasDisponibles = new()
+    {
+        { "germinacion", "Germinación" },
+        { "crecimiento", "Crecimiento" },
+        { "floracion", "Floración" }
+    };
+
+    private Dictionary<string, string> estadosDisponibles = new()
+    {
+        { "proceso", "Proceso" },
+        { "fallido", "Fallido" },
+        { "exitoso", "Exitoso" }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarCultivos();
+        await ObtenerPlantas();
+    }
+
+    private async Task CargarCultivos()
+    {
+        cultivos = await servicioEntidad.ObtenerTodosAsync(PROYECTO, "cultivo") ?? new();
+    }
+
+    private async Task ObtenerPlantas()
+    {
+        plantas = await servicioEntidad.ObtenerTodosAsync(PROYECTO, TABLA) ?? new();
+    }
+
+    private async Task CrearPlanta()
+    {
+        mensaje = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(nuevaEtapaActual) || string.IsNullOrWhiteSpace(nuevoEstado) || string.IsNullOrWhiteSpace(nuevoCultivoId))
+        {
+            mensaje = "Debe completar todos los campos.";
+            return;
+        }
+
+        var nueva = new Dictionary<string, object>
+        {
+            { "fecha_plantacion", nuevaFechaPlantacion.ToString("yyyy-MM-dd HH:mm:ss") },
+            { "etapa_actual", nuevaEtapaActual },
+            { "estado", nuevoEstado },
+            { "cultivo_id", int.Parse(nuevoCultivoId) }
+        };
+
+        bool creado = await servicioEntidad.CrearAsync(PROYECTO, TABLA, nueva);
+        if (creado)
+        {
+            mensaje = "Planta creada.";
+            nuevaFechaPlantacion = DateTime.Today;
+            nuevaEtapaActual = nuevoEstado = nuevoCultivoId = string.Empty;
+            await ObtenerPlantas();
+        }
+        else
+        {
+            mensaje = "Error al crear planta.";
+        }
+    }
+
+    private void IniciarEdicion(Dictionary<string, object> planta)
+    {
+        plantaEditarId = planta["id"].ToString();
+        plantaEditarEtapa = planta["etapa_actual"].ToString();
+        plantaEditarEstado = planta["estado"].ToString();
+        plantaEditarCultivoId = planta.ContainsKey("cultivo_id") ? planta["cultivo_id"].ToString() : string.Empty;
+
+        if (planta["fecha_plantacion"] is DateTime dt)
+            plantaEditarFecha = dt;
+        else if (DateTime.TryParse(planta["fecha_plantacion"]?.ToString(), out var parsed))
+            plantaEditarFecha = parsed;
+        else
+            plantaEditarFecha = DateTime.Today;
+    }
+
+    private void CancelarEdicion()
+    {
+        plantaEditarId = string.Empty;
+    }
+
+    private async Task GuardarEdicion(Dictionary<string, object> planta)
+    {
+        mensaje = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(plantaEditarEtapa) || string.IsNullOrWhiteSpace(plantaEditarEstado) || string.IsNullOrWhiteSpace(plantaEditarCultivoId))
+        {
+            mensaje = "Debe completar todos los campos.";
+            return;
+        }
+
+        var actualizada = new Dictionary<string, object>
+        {
+            { "fecha_plantacion", plantaEditarFecha.ToString("yyyy-MM-dd HH:mm:ss") },
+            { "etapa_actual", plantaEditarEtapa },
+            { "estado", plantaEditarEstado },
+            { "cultivo_id", int.Parse(plantaEditarCultivoId) }
+        };
+
+        bool resultado = await servicioEntidad.ActualizarAsync(PROYECTO, TABLA, "id", planta["id"].ToString(), actualizada);
+        if (resultado)
+        {
+            mensaje = "Planta actualizada.";
+            CancelarEdicion();
+            await ObtenerPlantas();
+        }
+        else
+        {
+            mensaje = "Error al actualizar planta.";
+        }
+    }
+
+    private async Task EliminarPlanta(Dictionary<string, object> planta)
+    {
+        bool confirmar = await JSRuntime.InvokeAsync<bool>("confirm", $"¿Eliminar planta registrada el {FormatFecha(planta["fecha_plantacion"])}?");
+        if (confirmar)
+        {
+            bool resultado = await servicioEntidad.EliminarAsync(PROYECTO, TABLA, "id", planta["id"].ToString());
+            if (resultado)
+            {
+                mensaje = "Planta eliminada.";
+                await ObtenerPlantas();
+            }
+            else
+            {
+                mensaje = "Error al eliminar planta.";
+            }
+        }
+    }
+
+    private string FormatFecha(object? fecha)
+    {
+        if (fecha is DateTime dt)
+            return dt.ToString("yyyy-MM-dd");
+
+        if (DateTime.TryParse(fecha?.ToString(), out var parsed))
+            return parsed.ToString("yyyy-MM-dd");
+
+        return "Fecha incorrecta";
+    }
+}
