@@ -1,0 +1,275 @@
+@page "/cultivo"
+@using System.Collections.Generic
+@using Services
+@inject ServicioEntidad servicioEntidad
+@inject IJSRuntime JSRuntime
+@inject NavigationManager navegacionManager
+
+<h3>Gestión de Cultivos</h3>
+
+@if (!string.IsNullOrEmpty(mensaje))
+{
+    <div class="alert alert-info">@mensaje</div>
+}
+
+<!-- FORMULARIO CREACIÓN -->
+<div class="mb-3">
+    <label for="nombre">Nombre:</label>
+    <input id="nombre" class="form-control mb-2" @bind="nuevoNombre" placeholder="Nombre del cultivo" title="Nombre del cultivo" />
+
+    <label for="ubicacion">Ubicación:</label>
+    <input id="ubicacion" class="form-control mb-2" @bind="nuevaUbicacion" placeholder="Ubicación" title="Ubicación del cultivo" />
+
+    <label for="fechaInicio">Fecha de inicio:</label>
+    <input id="fechaInicio" type="date" class="form-control mb-2" @bind="nuevaFechaInicio"
+           title="Seleccione la fecha de inicio" placeholder="Fecha de inicio" />
+
+    <label for="estado">Estado:</label>
+    <input id="estado" class="form-control mb-2" @bind="nuevoEstado" placeholder="Ej. En proceso, Finalizado" title="Estado del cultivo" />
+
+    <label for="usuario">Usuario cultivador:</label>
+    <select id="usuario" class="form-select mb-2" @bind="nuevoFkUsuario" title="Seleccione un usuario cultivador">
+        <option value="">Seleccione un usuario</option>
+        @foreach (var usuario in usuariosCultivadores)
+        {
+            <option value="@usuario["id"]">@usuario["correo"]</option>
+        }
+    </select>
+
+    <button class="btn btn-success mt-2" @onclick="CrearCultivo">Crear</button>
+</div>
+
+<h4>Cultivos registrados</h4>
+
+@if (cultivos.Count == 0)
+{
+    <p>No hay cultivos registrados.</p>
+}
+else
+{
+    <ul class="list-group">
+        @foreach (var cultivo in cultivos)
+        {
+            <li class="list-group-item">
+                @if (cultivoEditarId == cultivo["id"].ToString())
+                {
+                    <div>
+                        <label>Nombre:</label>
+                        <input class="form-control mb-1" @bind="cultivoEditarNombre" title="Nombre del cultivo" />
+
+                        <label>Ubicación:</label>
+                        <input class="form-control mb-1" @bind="cultivoEditarUbicacion" title="Ubicación del cultivo" />
+
+                        <label>Fecha de inicio:</label>
+                        <input type="date" class="form-control mb-1" @bind="cultivoEditarFecha"
+                               title="Seleccione la fecha de inicio" placeholder="Fecha" />
+
+                        <label>Estado:</label>
+                        <input class="form-control mb-1" @bind="cultivoEditarEstado" title="Estado del cultivo" />
+
+                        <label>Usuario cultivador:</label>
+                        <select class="form-select mb-2" @bind="cultivoEditarFkUsuario" title="Seleccione un usuario cultivador">
+                            <option value="">Seleccione un usuario</option>
+                            @foreach (var usuario in usuariosCultivadores)
+                            {
+                                <option value="@usuario["id"]">@usuario["correo"]</option>
+                            }
+                        </select>
+
+                        <button class="btn btn-primary me-2" @onclick="() => GuardarEdicion(cultivo)">Guardar</button>
+                        <button class="btn btn-secondary" @onclick="CancelarEdicion">Cancelar</button>
+                    </div>
+                }
+                else
+                {
+                    <div>
+                        <b>@cultivo["nombre"]</b> - @cultivo["ubicacion"]
+                        - Inicio: @FormatFecha(cultivo["fecha_inicio"])
+                        - Estado: @cultivo["estado"]
+                        <br />
+                        @if (cultivo.ContainsKey("cultivador_id"))
+                        {
+                            var usuario = usuariosCultivadores.FirstOrDefault(u => u["id"].ToString() == cultivo["cultivador_id"].ToString());
+                            <text>Responsable (correo): @usuario?["correo"]</text>
+                        }
+                        else
+                        {
+                            <text>Responsable: No asignado</text>
+                        }
+                        <br />
+                        <button class="btn btn-sm btn-primary me-2" @onclick="() => IniciarEdicion(cultivo)">Editar</button>
+                        <button class="btn btn-sm btn-danger" @onclick="() => EliminarCultivo(cultivo)">Eliminar</button>
+                    </div>
+                }
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private const string PROYECTO = "proyecto";
+    private const string TABLA = "cultivo";
+
+    private List<Dictionary<string, object>> cultivos = new();
+    private List<Dictionary<string, object>> usuariosCultivadores = new();
+
+    private string mensaje = string.Empty;
+
+    // Crear
+    private string nuevoNombre = string.Empty;
+    private string nuevaUbicacion = string.Empty;
+    private DateTime nuevaFechaInicio = DateTime.Today;
+    private string nuevoEstado = string.Empty;
+    private string nuevoFkUsuario = string.Empty; // ID como string
+
+    // Editar
+    private string cultivoEditarId = string.Empty;
+    private string cultivoEditarNombre = string.Empty;
+    private string cultivoEditarUbicacion = string.Empty;
+    private DateTime cultivoEditarFecha = DateTime.Today;
+    private string cultivoEditarEstado = string.Empty;
+    private string cultivoEditarFkUsuario = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarUsuariosCultivadores();
+        await ObtenerCultivos();
+    }
+
+    private async Task CargarUsuariosCultivadores()
+    {
+        var todosUsuarios = await servicioEntidad.ObtenerTodosAsync(PROYECTO, "usuario") ?? new();
+        usuariosCultivadores = todosUsuarios
+            .Where(u => u.ContainsKey("rol") && u["rol"].ToString() == "cultivador")
+            .ToList();
+    }
+
+    private async Task ObtenerCultivos()
+    {
+        cultivos = await servicioEntidad.ObtenerTodosAsync(PROYECTO, TABLA) ?? new();
+    }
+
+    private async Task CrearCultivo()
+    {
+        mensaje = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(nuevoFkUsuario))
+        {
+            mensaje = "Debe seleccionar un usuario cultivador.";
+            return;
+        }
+
+        var usuario = usuariosCultivadores.FirstOrDefault(u => u["id"].ToString() == nuevoFkUsuario);
+        if (usuario == null)
+        {
+            mensaje = "El usuario seleccionado no es cultivador.";
+            return;
+        }
+
+        var nuevo = new Dictionary<string, object>
+        {
+            { "nombre", nuevoNombre },
+            { "ubicacion", nuevaUbicacion },
+            { "fecha_inicio", nuevaFechaInicio.ToString("yyyy-MM-dd HH:mm:ss") },
+            { "estado", nuevoEstado },
+            { "cultivador_id", int.Parse(nuevoFkUsuario) }
+        };
+
+        bool creado = await servicioEntidad.CrearAsync(PROYECTO, TABLA, nuevo);
+        if (creado)
+        {
+            mensaje = "Cultivo creado.";
+            nuevoNombre = nuevaUbicacion = nuevoEstado = nuevoFkUsuario = string.Empty;
+            nuevaFechaInicio = DateTime.Today;
+            await ObtenerCultivos();
+        }
+        else
+        {
+            mensaje = "Error al crear cultivo.";
+        }
+    }
+
+    private void IniciarEdicion(Dictionary<string, object> cultivo)
+    {
+        cultivoEditarId = cultivo["id"].ToString();
+        cultivoEditarNombre = cultivo["nombre"].ToString();
+        cultivoEditarUbicacion = cultivo["ubicacion"].ToString();
+
+        if (cultivo["fecha_inicio"] is DateTime dt)
+            cultivoEditarFecha = dt;
+        else if (DateTime.TryParse(cultivo["fecha_inicio"]?.ToString(), out var parsed))
+            cultivoEditarFecha = parsed;
+        else
+            cultivoEditarFecha = DateTime.Today;
+
+        cultivoEditarEstado = cultivo["estado"].ToString();
+        cultivoEditarFkUsuario = cultivo.ContainsKey("cultivador_id") ? cultivo["cultivador_id"].ToString() : string.Empty;
+    }
+
+    private void CancelarEdicion()
+    {
+        cultivoEditarId = string.Empty;
+    }
+
+    private async Task GuardarEdicion(Dictionary<string, object> cultivo)
+    {
+        mensaje = string.Empty;
+
+        var usuario = usuariosCultivadores.FirstOrDefault(u => u["id"].ToString() == cultivoEditarFkUsuario);
+        if (usuario == null)
+        {
+            mensaje = "El usuario seleccionado no es cultivador.";
+            return;
+        }
+
+        var actualizado = new Dictionary<string, object>
+        {
+            { "nombre", cultivoEditarNombre },
+            { "ubicacion", cultivoEditarUbicacion },
+            { "fecha_inicio", cultivoEditarFecha.ToString("yyyy-MM-dd HH:mm:ss") },
+            { "estado", cultivoEditarEstado },
+            { "cultivador_id", int.Parse(cultivoEditarFkUsuario) }
+        };
+
+        bool resultado = await servicioEntidad.ActualizarAsync(PROYECTO, TABLA, "id", cultivo["id"].ToString(), actualizado);
+        if (resultado)
+        {
+            mensaje = "Cultivo actualizado.";
+            CancelarEdicion();
+            await ObtenerCultivos();
+        }
+        else
+        {
+            mensaje = "Error al actualizar cultivo.";
+        }
+    }
+
+    private async Task EliminarCultivo(Dictionary<string, object> cultivo)
+    {
+        bool confirmar = await JSRuntime.InvokeAsync<bool>("confirm", $"¿Deseas eliminar el cultivo '{cultivo["nombre"]}'?");
+        if (confirmar)
+        {
+            bool resultado = await servicioEntidad.EliminarAsync(PROYECTO, TABLA, "id", cultivo["id"].ToString());
+            if (resultado)
+            {
+                mensaje = "Cultivo eliminado.";
+                await ObtenerCultivos();
+            }
+            else
+            {
+                mensaje = "Error al eliminar cultivo.";
+            }
+        }
+    }
+
+    private string FormatFecha(object? fecha)
+    {
+        if (fecha is DateTime dt)
+            return dt.ToString("yyyy-MM-dd");
+
+        if (DateTime.TryParse(fecha?.ToString(), out var parsed))
+            return parsed.ToString("yyyy-MM-dd");
+
+        return "Fecha inválida";
+    }
+}

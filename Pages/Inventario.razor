@@ -1,0 +1,214 @@
+@page "/inventario"
+@using System.Collections.Generic
+@using Services
+@inject ServicioEntidad servicioEntidad
+@inject IJSRuntime JSRuntime
+@inject NavigationManager navegacionManager
+
+<h3>Inventario</h3>
+
+@if (!string.IsNullOrEmpty(errorMensaje))
+{
+    <div class="alert alert-danger">@errorMensaje</div>
+}
+
+<div class="mb-3">
+    <label for="insumoNuevo">Tipo de insumo:</label>
+    <input id="insumoNuevo" class="form-control mb-2" @bind="nuevoTipoInsumo" placeholder="insumo" title="Tipo de insumo" />
+
+    <label for="cantidadNueva">Cantidad:</label>
+    <input id="cantidadNueva" type="number" class="form-control mb-2" @bind="nuevaCantidad" placeholder="cantidad" title="Cantidad del insumo" />
+
+    <label for="fechaNueva">Fecha de actualización:</label>
+    <input id="fechaNueva" type="date" class="form-control mb-2" @bind="nuevaFechaActualizacion" title="Fecha de actualización del insumo" />
+
+    <button class="btn btn-success" @onclick="CrearInventario">Crear</button>
+</div>
+
+<h4>Registros existentes</h4>
+@if (inventario.Count == 0)
+{
+    <p>No hay registros de inventario.</p>
+}
+else
+{
+    <ul class="list-group">
+        @foreach (var item in inventario)
+        {
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                @if (itemEditarId == item["id"].ToString())
+                {
+                    <div style="flex: 1;">
+                        <label for="editarInsumo">Tipo de insumo:</label>
+                        <input id="editarInsumo" class="form-control mb-1" @bind="itemEditarTipoInsumo" placeholder="Ej. Alcohol" title="Tipo de insumo" />
+
+                        <label for="editarCantidad">Cantidad:</label>
+                        <input id="editarCantidad" type="number" class="form-control mb-1" @bind="itemEditarCantidad" placeholder="Ej. 10" title="Cantidad del insumo" />
+
+                        <label for="editarFecha">Fecha actualización:</label>
+                        <input id="editarFecha" type="date" class="form-control mb-1" @bind="itemEditarFecha" title="Fecha de actualización del insumo" />
+
+                        <button class="btn btn-primary mt-2 me-2" @onclick="() => GuardarEdicion(item)">Guardar</button>
+                        <button class="btn btn-secondary mt-2" @onclick="CancelarEdicion">Cancelar</button>
+                    </div>
+                }
+                else
+                {
+                    <span>
+                        <b>Insumo:</b> @item["tipoInsumo"], 
+                        <b>Cantidad:</b> @item["cantidad"], 
+                        <b>Fecha:</b> @FormatFecha(item["fecha_actualizacion"])
+                    </span>
+                    <span>
+                        <button class="btn btn-primary btn-sm me-2" @onclick="() => IniciarEdicion(item)">Editar</button>
+                        <button class="btn btn-danger btn-sm" @onclick="() => EliminarInventario(item)">Eliminar</button>
+                    </span>
+                }
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private const string PROYECTO = "proyecto";
+    private const string TABLA = "inventario";
+
+    private List<Dictionary<string, object>> inventario = new();
+
+    private string nuevoTipoInsumo = string.Empty;
+    private int nuevaCantidad = 0;
+    private DateTime nuevaFechaActualizacion = DateTime.Today;
+
+    private string itemEditarId = string.Empty;
+    private string itemEditarTipoInsumo = string.Empty;
+    private int itemEditarCantidad = 0;
+    private DateTime itemEditarFecha = DateTime.Today;
+
+    private string? errorMensaje = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ObtenerInventario();
+    }
+
+    private async Task ObtenerInventario()
+    {
+        try
+        {
+            inventario = await servicioEntidad.ObtenerTodosAsync(PROYECTO, TABLA) ?? new();
+        }
+        catch (Exception ex)
+        {
+            errorMensaje = $"Error al cargar el inventario: {ex.Message}";
+        }
+    }
+
+    private async Task CrearInventario()
+    {
+        if (string.IsNullOrWhiteSpace(nuevoTipoInsumo))
+        {
+            errorMensaje = "El tipo de insumo no puede estar vacío.";
+            return;
+        }
+
+        var nuevoItem = new Dictionary<string, object>
+        {
+            { "tipoInsumo", nuevoTipoInsumo },
+            { "cantidad", nuevaCantidad },
+            { "fecha_actualizacion", nuevaFechaActualizacion }
+        };
+
+        bool resultado = await servicioEntidad.CrearAsync(PROYECTO, TABLA, nuevoItem);
+        if (resultado)
+        {
+            nuevoTipoInsumo = string.Empty;
+            nuevaCantidad = 0;
+            nuevaFechaActualizacion = DateTime.Today;
+            await ObtenerInventario();
+        }
+        else
+        {
+            errorMensaje = "Error al crear el registro.";
+        }
+    }
+
+    private void IniciarEdicion(Dictionary<string, object> item)
+    {
+        itemEditarId = item["id"].ToString();
+        itemEditarTipoInsumo = item["tipoInsumo"].ToString();
+
+        itemEditarCantidad = item["cantidad"] switch
+        {
+            int val => val,
+            long val => (int)val,
+            float val => (int)val,
+            double val => (int)val,
+            decimal val => (int)val,
+            string str when int.TryParse(str, out var result) => result,
+            _ => 0
+        };
+
+        if (item["fecha_actualizacion"] is DateTime dt)
+            itemEditarFecha = dt;
+        else if (DateTime.TryParse(item["fecha_actualizacion"]?.ToString(), out var parsed))
+            itemEditarFecha = parsed;
+        else
+            itemEditarFecha = DateTime.Today;
+
+        StateHasChanged(); // 🔄 Forzar render inmediato si lo necesitas
+    }
+
+    private void CancelarEdicion()
+    {
+        itemEditarId = string.Empty;
+    }
+
+    private async Task GuardarEdicion(Dictionary<string, object> item)
+    {
+        var actualizado = new Dictionary<string, object>
+        {
+            { "tipoInsumo", itemEditarTipoInsumo },
+            { "cantidad", itemEditarCantidad },
+            { "fecha_actualizacion", itemEditarFecha }
+        };
+
+        bool resultado = await servicioEntidad.ActualizarAsync(PROYECTO, TABLA, "id", item["id"].ToString(), actualizado);
+        if (resultado)
+        {
+            CancelarEdicion();
+            await ObtenerInventario();
+        }
+        else
+        {
+            errorMensaje = "Error al actualizar el registro.";
+        }
+    }
+
+    private async Task EliminarInventario(Dictionary<string, object> item)
+    {
+        bool confirmar = await JSRuntime.InvokeAsync<bool>("confirm", $"¿Deseas eliminar el insumo '{item["tipoInsumo"]}'?");
+        if (confirmar)
+        {
+            bool resultado = await servicioEntidad.EliminarAsync(PROYECTO, TABLA, "id", item["id"].ToString());
+            if (resultado)
+            {
+                await ObtenerInventario();
+            }
+            else
+            {
+                errorMensaje = "Error al eliminar el registro.";
+            }
+        }
+    }
+
+    private string FormatFecha(object? fecha)
+    {
+        if (fecha is DateTime dt)
+            return dt.ToString("yyyy-MM-dd");
+
+        if (DateTime.TryParse(fecha?.ToString(), out var parsed))
+            return parsed.ToString("yyyy-MM-dd");
+
+        return "Fecha inválida";
+    }
+}

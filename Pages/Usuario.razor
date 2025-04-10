@@ -1,0 +1,217 @@
+@page "/usuario"
+@using System.Collections.Generic
+@using Services
+@inject ServicioEntidad servicioEntidad
+@inject IJSRuntime JSRuntime
+@inject NavigationManager navegacionManager
+
+<h3>Gestión de Usuarios</h3>
+
+@if (!string.IsNullOrEmpty(mensaje))
+{
+    <div class="alert alert-info">@mensaje</div>
+}
+
+<div class="mb-3">
+    <label>Nombre:</label>
+    <input class="form-control mb-2" @bind="nuevoNombre" placeholder="Nombre completo" />
+
+    <label>Correo (único):</label>
+    <input class="form-control mb-2" @bind="nuevoCorreo" placeholder="ejemplo@correo.com" />
+
+    <label>Contraseña:</label>
+    <input type="password" class="form-control mb-2" @bind="nuevaContrasena" placeholder="Contraseña segura" />
+
+    <label>Rol:</label>
+    <select class="form-select mb-2" @bind="nuevoRol">
+        <option value="">Seleccione un rol</option>
+        @foreach (var r in rolesDisponibles)
+        {
+            <option value="@r">@r</option>
+        }
+    </select>
+
+    <label>Estado:</label>
+    <input type="checkbox" class="form-check-input mb-2" @bind="nuevoEstado" /> Activo
+
+    <br />
+    <button class="btn btn-success mt-2" @onclick="CrearUsuario">Crear</button>
+</div>
+
+<h4>Usuarios registrados</h4>
+@if (usuarios.Count == 0)
+{
+    <p>No hay usuarios registrados.</p>
+}
+else
+{
+    <ul class="list-group">
+        @foreach (var usuario in usuarios)
+        {
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                @if (usuarioEditarId == usuario["id"].ToString())
+                {
+                    <div style="flex: 1;">
+                        <label>Nombre:</label>
+                        <input class="form-control mb-1" @bind="usuarioEditarNombre" />
+                        <label>Correo:</label>
+                        <input class="form-control mb-1" @bind="usuarioEditarCorreo" />
+                        <label>Contraseña:</label>
+                        <input type="password" class="form-control mb-1" @bind="usuarioEditarContrasena" />
+                        <label>Rol:</label>
+                        <select class="form-select mb-1" @bind="usuarioEditarRol">
+                            @foreach (var r in rolesDisponibles)
+                            {
+                                <option value="@r">@r</option>
+                            }
+                        </select>
+                        <label>Estado:</label>
+                        <input type="checkbox" class="form-check-input mb-2" @bind="usuarioEditarEstado" /> Activo
+                        <br />
+                        <button class="btn btn-primary mt-2 me-2" @onclick="() => GuardarEdicion(usuario)">Guardar</button>
+                        <button class="btn btn-secondary mt-2" @onclick="CancelarEdicion">Cancelar</button>
+                    </div>
+                }
+                else
+                {
+                    <span>
+                        <b>@usuario["nombre"]</b> - @usuario["correo"] - Rol: @usuario["rol"] - Estado: @(usuario["estado"].ToString() == "True" ? "Activo" : "Inactivo")
+                    </span>
+                    <span>
+                        <button class="btn btn-primary btn-sm me-2" @onclick="() => IniciarEdicion(usuario)">Editar</button>
+                        <button class="btn btn-danger btn-sm" @onclick="() => EliminarUsuario(usuario)">Eliminar</button>
+                    </span>
+                }
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private const string PROYECTO = "proyecto";
+    private const string TABLA = "usuario";
+
+    private List<Dictionary<string, object>> usuarios = new();
+    private string mensaje = string.Empty;
+
+    private string nuevoNombre = string.Empty;
+    private string nuevoCorreo = string.Empty;
+    private string nuevaContrasena = string.Empty;
+    private string nuevoRol = string.Empty;
+    private bool nuevoEstado = true;
+
+    private string usuarioEditarId = string.Empty;
+    private string usuarioEditarNombre = string.Empty;
+    private string usuarioEditarCorreo = string.Empty;
+    private string usuarioEditarContrasena = string.Empty;
+    private string usuarioEditarRol = string.Empty;
+    private bool usuarioEditarEstado = true;
+
+    private List<string> rolesDisponibles = new() { "cultivador", "administrador", "proveedor" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ObtenerUsuarios();
+    }
+
+    private async Task ObtenerUsuarios()
+    {
+        usuarios = await servicioEntidad.ObtenerTodosAsync(PROYECTO, TABLA) ?? new();
+    }
+
+    private async Task CrearUsuario()
+    {
+        mensaje = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(nuevoCorreo))
+        {
+            mensaje = "El correo no puede estar vacío.";
+            return;
+        }
+
+        if (usuarios.Any(u => u["correo"].ToString()?.ToLower() == nuevoCorreo.ToLower()))
+        {
+            mensaje = "Este correo ya está registrado.";
+            return;
+        }
+
+        var nuevo = new Dictionary<string, object>
+        {
+            { "nombre", nuevoNombre },
+            { "correo", nuevoCorreo },
+            { "contraseña", nuevaContrasena },
+            { "rol", nuevoRol },
+            { "estado", nuevoEstado }
+        };
+
+        bool resultado = await servicioEntidad.CrearAsync(PROYECTO, TABLA, nuevo);
+        if (resultado)
+        {
+            mensaje = "Usuario creado exitosamente.";
+            nuevoNombre = nuevoCorreo = nuevaContrasena = nuevoRol = string.Empty;
+            nuevoEstado = true;
+            await ObtenerUsuarios();
+        }
+        else
+        {
+            mensaje = "Error al crear usuario.";
+        }
+    }
+
+    private void IniciarEdicion(Dictionary<string, object> u)
+    {
+        usuarioEditarId = u["id"].ToString();
+        usuarioEditarNombre = u["nombre"].ToString();
+        usuarioEditarCorreo = u["correo"].ToString();
+        usuarioEditarContrasena = u["contraseña"].ToString();
+        usuarioEditarRol = u["rol"].ToString();
+        usuarioEditarEstado = u["estado"].ToString() == "True";
+    }
+
+    private void CancelarEdicion()
+    {
+        usuarioEditarId = string.Empty;
+    }
+
+    private async Task GuardarEdicion(Dictionary<string, object> u)
+    {
+        var actualizado = new Dictionary<string, object>
+        {
+            { "nombre", usuarioEditarNombre },
+            { "correo", usuarioEditarCorreo },
+            { "contraseña", usuarioEditarContrasena },
+            { "rol", usuarioEditarRol },
+            { "estado", usuarioEditarEstado }
+        };
+
+        bool resultado = await servicioEntidad.ActualizarAsync(PROYECTO, TABLA, "id", usuarioEditarId, actualizado);
+        if (resultado)
+        {
+            mensaje = "Usuario actualizado.";
+            CancelarEdicion();
+            await ObtenerUsuarios();
+        }
+        else
+        {
+            mensaje = "Error al actualizar el usuario.";
+        }
+    }
+
+    private async Task EliminarUsuario(Dictionary<string, object> u)
+    {
+        bool confirmar = await JSRuntime.InvokeAsync<bool>("confirm", $"¿Deseas eliminar al usuario {u["correo"]}?");
+        if (confirmar)
+        {
+            bool resultado = await servicioEntidad.EliminarAsync(PROYECTO, TABLA, "id", u["id"].ToString());
+            if (resultado)
+            {
+                mensaje = "Usuario eliminado.";
+                await ObtenerUsuarios();
+            }
+            else
+            {
+                mensaje = "Error al eliminar usuario.";
+            }
+        }
+    }
+}
