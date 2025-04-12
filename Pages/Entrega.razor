@@ -1,0 +1,288 @@
+@page "/entrega"
+@using System.Collections.Generic
+@using Services
+@inject ServicioEntidad servicioEntidad
+@inject IJSRuntime JSRuntime
+@inject NavigationManager navegacionManager
+
+<h3>Gestión de Entregas</h3>
+
+@if (!string.IsNullOrEmpty(mensaje))
+{
+    <div class="alert alert-info">@mensaje</div>
+}
+
+<div class="mb-3">
+    <label for="fecha">Fecha de entrega:</label>
+    <input id="fecha" type="date" class="form-control mb-2" @bind="nuevaFecha" title="Fecha de la entrega" />
+
+    <label for="tipo">Tipo de insumo:</label>
+    <select id="tipo" class="form-select mb-2" @bind="nuevoTipoInsumo" title="Tipo de insumo">
+        <option value="">Seleccione un tipo</option>
+        @foreach (var tipo in tiposInsumo)
+        {
+            <option value="@tipo.Key">@tipo.Value</option>
+        }
+    </select>
+
+    <label for="cantidad">Cantidad:</label>
+    <input id="cantidad" type="number" class="form-control mb-2" @bind="nuevaCantidad" placeholder="Ej: 10" title="Cantidad entregada" />
+
+    <label for="estado">Estado de aprobación:</label>
+    <select id="estado" class="form-select mb-2" @bind="nuevoEstadoAprobacion" title="Estado de la entrega">
+        <option value="">Seleccione un estado</option>
+        @foreach (var estado in estadosAprobacion)
+        {
+            <option value="@estado.Key">@estado.Value</option>
+        }
+    </select>
+
+    <label for="proveedor">Proveedor:</label>
+    <select id="proveedor" class="form-select mb-2" @bind="nuevoProveedorId" title="Proveedor responsable">
+        <option value="">Seleccione un proveedor</option>
+        @foreach (var usuario in proveedores)
+        {
+            <option value="@usuario["id"]">@usuario["nombre"]</option>
+        }
+    </select>
+
+    <button class="btn btn-success mt-2" @onclick="CrearEntrega">Crear</button>
+</div>
+
+<h4>Entregas registradas</h4>
+
+@if (entregas.Count == 0)
+{
+    <p>No hay entregas registradas.</p>
+}
+else
+{
+    <ul class="list-group">
+        @foreach (var entrega in entregas)
+        {
+            <li class="list-group-item">
+                @if (entregaEditarId == entrega["id"].ToString())
+                {
+                    <div>
+                        <label>Fecha:</label>
+                        <input type="date" class="form-control mb-1" @bind="entregaEditarFecha" title="Fecha" />
+
+                        <label>Tipo insumo:</label>
+                        <select class="form-select mb-1" @bind="entregaEditarTipo" title="Tipo de insumo">
+                            <option value="">Seleccione un tipo</option>
+                            @foreach (var tipo in tiposInsumo)
+                            {
+                                <option value="@tipo.Key">@tipo.Value</option>
+                            }
+                        </select>
+
+                        <label>Cantidad:</label>
+                        <input type="number" class="form-control mb-1" @bind="entregaEditarCantidad" title="Cantidad" />
+
+                        <label>Estado aprobación:</label>
+                        <select class="form-select mb-1" @bind="entregaEditarEstado" title="Estado de aprobación">
+                            <option value="">Seleccione un estado</option>
+                            @foreach (var estado in estadosAprobacion)
+                            {
+                                <option value="@estado.Key">@estado.Value</option>
+                            }
+                        </select>
+
+                        <label>Proveedor:</label>
+                        <select class="form-select mb-2" @bind="entregaEditarProveedorId" title="Proveedor">
+                            <option value="">Seleccione un proveedor</option>
+                            @foreach (var proveedor in proveedores)
+                            {
+                                <option value="@proveedor["id"]">@proveedor["nombre"]</option>
+                            }
+                        </select>
+
+                        <button class="btn btn-primary me-2" @onclick="() => GuardarEdicion(entrega)">Guardar</button>
+                        <button class="btn btn-secondary" @onclick="CancelarEdicion">Cancelar</button>
+                    </div>
+                }
+                else
+                {
+                    <div>
+                        Fecha: @FormatFecha(entrega["fecha"])
+                        - Tipo: @entrega["tipo_insumo"]
+                        - Cantidad: @entrega["cantidad"]
+                        - Estado: @entrega["estado_aprobacion"]
+                        <br />
+                        Proveedor: @proveedores.FirstOrDefault(p => p["id"].ToString() == entrega["proveedor_id"].ToString())?["nombre"]
+                        <br />
+                        <button class="btn btn-sm btn-primary me-2" @onclick="() => IniciarEdicion(entrega)">Editar</button>
+                        <button class="btn btn-sm btn-danger" @onclick="() => EliminarEntrega(entrega)">Eliminar</button>
+                    </div>
+                }
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private const string PROYECTO = "proyecto";
+    private const string TABLA = "entrega";
+
+    private List<Dictionary<string, object>> entregas = new();
+    private List<Dictionary<string, object>> proveedores = new();
+
+    private string mensaje = string.Empty;
+
+    private DateTime nuevaFecha = DateTime.Today;
+    private string nuevoTipoInsumo = string.Empty;
+    private int nuevaCantidad;
+    private string nuevoEstadoAprobacion = string.Empty;
+    private string nuevoProveedorId = string.Empty;
+
+    private string entregaEditarId = string.Empty;
+    private DateTime entregaEditarFecha = DateTime.Today;
+    private string entregaEditarTipo = string.Empty;
+    private int entregaEditarCantidad;
+    private string entregaEditarEstado = string.Empty;
+    private string entregaEditarProveedorId = string.Empty;
+
+    private Dictionary<string, string> tiposInsumo = new()
+    {
+        { "fosforo", "Fósforo" },
+        { "nitrogeno", "Nitrógeno" },
+        { "potasio", "Potasio" },
+        { "semilla", "Semilla" }
+    };
+
+    private Dictionary<string, string> estadosAprobacion = new()
+    {
+        { "en proceso", "En proceso" },
+        { "aprobado", "Aprobado" }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarProveedores();
+        await ObtenerEntregas();
+    }
+
+    private async Task CargarProveedores()
+    {
+        var usuarios = await servicioEntidad.ObtenerTodosAsync(PROYECTO, "usuario") ?? new();
+        proveedores = usuarios.Where(u => u.ContainsKey("rol") && u["rol"]?.ToString() == "proveedor").ToList();
+    }
+
+    private async Task ObtenerEntregas()
+    {
+        entregas = await servicioEntidad.ObtenerTodosAsync(PROYECTO, TABLA) ?? new();
+    }
+
+    private async Task CrearEntrega()
+    {
+        mensaje = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(nuevoTipoInsumo) || string.IsNullOrWhiteSpace(nuevoEstadoAprobacion) || string.IsNullOrWhiteSpace(nuevoProveedorId))
+        {
+            mensaje = "Todos los campos son obligatorios.";
+            return;
+        }
+
+        var datos = new Dictionary<string, object>
+        {
+            { "fecha", nuevaFecha.ToString("yyyy-MM-dd HH:mm:ss") },
+            { "tipo_insumo", nuevoTipoInsumo },
+            { "cantidad", nuevaCantidad },
+            { "estado_aprobacion", nuevoEstadoAprobacion },
+            { "proveedor_id", int.Parse(nuevoProveedorId) }
+        };
+
+        bool creado = await servicioEntidad.CrearAsync(PROYECTO, TABLA, datos);
+        if (creado)
+        {
+            mensaje = "Entrega registrada correctamente.";
+            nuevaFecha = DateTime.Today;
+            nuevoTipoInsumo = nuevoEstadoAprobacion = nuevoProveedorId = string.Empty;
+            nuevaCantidad = 0;
+            await ObtenerEntregas();
+        }
+        else
+        {
+            mensaje = "Error al registrar la entrega.";
+        }
+    }
+
+    private void IniciarEdicion(Dictionary<string, object> entrega)
+    {
+        entregaEditarId = entrega["id"].ToString();
+        entregaEditarTipo = entrega["tipo_insumo"].ToString();
+        entregaEditarCantidad = int.Parse(entrega["cantidad"].ToString());
+        entregaEditarEstado = entrega["estado_aprobacion"].ToString();
+        entregaEditarProveedorId = entrega["proveedor_id"].ToString();
+
+        if (entrega["fecha"] is DateTime dt)
+            entregaEditarFecha = dt;
+        else if (DateTime.TryParse(entrega["fecha"]?.ToString(), out var parsed))
+            entregaEditarFecha = parsed;
+        else
+            entregaEditarFecha = DateTime.Today;
+    }
+
+    private void CancelarEdicion()
+    {
+        entregaEditarId = string.Empty;
+    }
+
+    private async Task GuardarEdicion(Dictionary<string, object> entrega)
+    {
+        if (string.IsNullOrWhiteSpace(entregaEditarTipo) || string.IsNullOrWhiteSpace(entregaEditarEstado) || string.IsNullOrWhiteSpace(entregaEditarProveedorId))
+        {
+            mensaje = "Debe completar todos los campos.";
+            return;
+        }
+
+        var actualizado = new Dictionary<string, object>
+        {
+            { "fecha", entregaEditarFecha.ToString("yyyy-MM-dd HH:mm:ss") },
+            { "tipo_insumo", entregaEditarTipo },
+            { "cantidad", entregaEditarCantidad },
+            { "estado_aprobacion", entregaEditarEstado },
+            { "proveedor_id", int.Parse(entregaEditarProveedorId) }
+        };
+
+        bool resultado = await servicioEntidad.ActualizarAsync(PROYECTO, TABLA, "id", entrega["id"].ToString(), actualizado);
+        if (resultado)
+        {
+            mensaje = "Entrega actualizada.";
+            CancelarEdicion();
+            await ObtenerEntregas();
+        }
+        else
+        {
+            mensaje = "Error al actualizar entrega.";
+        }
+    }
+
+    private async Task EliminarEntrega(Dictionary<string, object> entrega)
+    {
+        bool confirmar = await JSRuntime.InvokeAsync<bool>("confirm", $"¿Eliminar entrega del {FormatFecha(entrega["fecha"])}?");
+        if (!confirmar) return;
+
+        bool eliminado = await servicioEntidad.EliminarAsync(PROYECTO, TABLA, "id", entrega["id"].ToString());
+        if (eliminado)
+        {
+            mensaje = "Entrega eliminada.";
+            await ObtenerEntregas();
+        }
+        else
+        {
+            mensaje = "Error al eliminar la entrega.";
+        }
+    }
+
+    private string FormatFecha(object? fecha)
+    {
+        if (fecha is DateTime dt)
+            return dt.ToString("yyyy-MM-dd");
+
+        if (DateTime.TryParse(fecha?.ToString(), out var parsed))
+            return parsed.ToString("yyyy-MM-dd");
+
+        return "Fecha inválida";
+    }
+}
