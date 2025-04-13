@@ -203,41 +203,41 @@ namespace FrontBlazor.Services  // Definir el espacio de nombres donde se ubicar
             }
         }
 
-public async Task<List<Dictionary<string, object>>?> EjecutarProcedimientoAsync(
-    string nombreProyecto,
-    string nombreTabla,
-    string nombreSP,
-    Dictionary<string, object> parametros)
-{
-    try
-    {
-        var url = $"{nombreProyecto}/{nombreTabla}/ejecutar-sp";
-
-        // Agregar el nombre del SP como parámetro adicional
-        parametros["nombreSP"] = nombreSP;
-
-        var contenido = new StringContent(
-            JsonSerializer.Serialize(parametros),
-            Encoding.UTF8,
-            "application/json"
-        );
-
-        var respuesta = await _clienteHttp.PostAsync(url, contenido);
-        if (respuesta.IsSuccessStatusCode)
+        public async Task<List<Dictionary<string, object>>?> EjecutarProcedimientoAsync(
+            string nombreProyecto,
+            string nombreTabla,
+            string nombreSP,
+            Dictionary<string, object> parametros)
         {
-            var resultado = await respuesta.Content.ReadFromJsonAsync<List<Dictionary<string, object>>>(_opcionesJson);
-            return resultado;
-        }
+            try
+            {
+                var url = $"{nombreProyecto}/{nombreTabla}/ejecutar-sp";
 
-        Console.WriteLine($"Error al ejecutar procedimiento: {respuesta.ReasonPhrase}");
-        return null;
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Excepción en procedimiento: {ex.Message}");
-        return null;
-    }
-}
+                // Agregar el nombre del SP como parámetro adicional
+                parametros["nombreSP"] = nombreSP;
+
+                var contenido = new StringContent(
+                    JsonSerializer.Serialize(parametros),
+                    Encoding.UTF8,
+                    "application/json"
+                );
+
+                var respuesta = await _clienteHttp.PostAsync(url, contenido);
+                if (respuesta.IsSuccessStatusCode)
+                {
+                    var resultado = await respuesta.Content.ReadFromJsonAsync<List<Dictionary<string, object>>>(_opcionesJson);
+                    return resultado;
+                }
+
+                Console.WriteLine($"Error al ejecutar procedimiento: {respuesta.ReasonPhrase}");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Excepción en procedimiento: {ex.Message}");
+                return null;
+            }
+        }
 
     }
 
