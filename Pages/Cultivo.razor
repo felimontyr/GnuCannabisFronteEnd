@@ -12,7 +12,6 @@
     <div class="alert alert-info">@mensaje</div>
 }
 
-<!-- FORMULARIO CREACIÓN -->
 <div class="mb-3">
     <label for="nombre">Nombre:</label>
     <input id="nombre" class="form-control mb-2" @bind="nuevoNombre" placeholder="Nombre del cultivo" title="Nombre del cultivo" />
@@ -121,14 +120,12 @@ else
 
     private string mensaje = string.Empty;
 
-    // Crear
     private string nuevoNombre = string.Empty;
     private string nuevaUbicacion = string.Empty;
     private DateTime nuevaFechaInicio = DateTime.Today;
     private string nuevoEstado = string.Empty;
-    private string nuevoFkUsuario = string.Empty; // ID como string
+    private string nuevoFkUsuario = string.Empty; 
 
-    // Editar
     private string cultivoEditarId = string.Empty;
     private string cultivoEditarNombre = string.Empty;
     private string cultivoEditarUbicacion = string.Empty;

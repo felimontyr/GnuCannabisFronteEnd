@@ -1,0 +1,120 @@
+@page "/alertaInsumo"
+@using System.Collections.Generic
+@using Services
+@inject ServicioEntidad servicioEntidad
+@inject IJSRuntime JSRuntime
+@inject NavigationManager navManager
+
+<h3>Insumos Agotados</h3>
+
+@if (!string.IsNullOrEmpty(mensaje))
+{
+    <div class="alert alert-info">@mensaje</div>
+}
+
+@if (insumosAgotados == null)
+{
+    <p>Cargando datos...</p>
+}
+else if (insumosAgotados.Count == 0)
+{
+    <div class="alert alert-success">
+        No hay insumos agotados en este momento
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead class="table-dark">
+                <tr>
+                    <th>Tipo de Insumo</th>
+                    <th>Cantidad</th>
+                    <th>Última Actualización</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var insumo in insumosAgotados)
+                {
+                    <tr>
+                        <td>@insumo["Tipo"]</td>
+                        <td class="text-danger fw-bold">@insumo["Cantidad"]</td>
+                        <td>@FormatFecha(insumo["fecha"])</td>
+                        <td>
+                            <button class="btn btn-sm btn-info" 
+                                    @onclick="() => MostrarDetalleInsumo(insumo)"
+                                    title="Ver detalles">
+                                <i class="fas fa-info-circle"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private const string PROYECTO = "proyecto";
+    private const string TABLA = "inventario";
+
+    private List<Dictionary<string, object>> insumosAgotados = new();
+    private string mensaje = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarInsumosAgotados();
+    }
+
+    private async Task CargarInsumosAgotados()
+    {
+        try
+        {
+            var parametros = new Dictionary<string, object>
+            {
+                { "nombreSP", "sp_InsumosEnCero" }
+            };
+
+            insumosAgotados = await servicioEntidad.EjecutarProcedimientoAsync(
+                PROYECTO, 
+                TABLA, 
+                "sp_InsumosEnCero", 
+                parametros) ?? new();
+
+            if (insumosAgotados.Count > 0)
+            {
+                mensaje = $"Se encontraron {insumosAgotados.Count} insumos agotados";
+            }
+        }
+        catch (Exception ex)
+        {
+            mensaje = $"Error al cargar insumos: {ex.Message}";
+            Console.WriteLine(mensaje);
+        }
+    }
+
+    private async Task MostrarDetalleInsumo(Dictionary<string, object> insumo)
+    {
+        await JSRuntime.InvokeVoidAsync("alert", 
+            $"Insumo: {insumo["Tipo"]}\n" +
+            $"Cantidad: {insumo["Cantidad"]}\n" +
+            $"Última actualización: {FormatFecha(insumo["fecha"])}");
+    }
+
+    private string FormatFecha(object fechaObj)
+    {
+        if (fechaObj is DateTime fecha)
+        {
+            return fecha.ToString("dd/MM/yyyy HH:mm");
+        }
+
+        if (DateTime.TryParse(fechaObj?.ToString(), out var parsedDate))
+        {
+            return parsedDate.ToString("dd/MM/yyyy HH:mm");
+        }
+
+        return "Fecha no disponible";
+    }
+
+}
