@@ -5,6 +5,7 @@
 @inject NavigationManager navegacionManager
 @inject IJSRuntime JSRuntime
 
+
 <h3>Iniciar Sesión</h3>
 
 @if (!string.IsNullOrEmpty(mensaje))
@@ -44,6 +45,8 @@
         if (usuarioEncontrado != null)
         {
             await JSRuntime.InvokeVoidAsync("localStorage.setItem", "isAuthenticated", "true");
+            await JSRuntime.InvokeVoidAsync("localStorage.setItem", "correoUsuario", correo);
+
             navegacionManager.NavigateTo("/home");
         }
         else

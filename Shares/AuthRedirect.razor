@@ -4,11 +4,11 @@
 @code {
     protected override async Task OnInitializedAsync()
     {
-        var auth = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "isAuthenticated");
+        var isAuthenticated = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "isAuthenticated");
 
-        if (string.IsNullOrEmpty(auth) || auth != "true")
+        if (string.IsNullOrEmpty(isAuthenticated) || isAuthenticated != "true")
         {
-            Navigation.NavigateTo("/login", forceLoad: true);
+            Navigation.NavigateTo("/", true);
         }
     }
 }
