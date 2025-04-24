@@ -1,0 +1,47 @@
+@page "/perfil"
+@using Services
+@inject ServicioEntidad servicioEntidad
+@inject NavigationManager navegacionManager
+@inject IJSRuntime JSRuntime
+
+<AuthRedirect />
+
+<h3>Perfil del Usuario</h3>
+
+@if (usuario != null)
+{
+    <div class="card p-3">
+        <p><strong>Nombre:</strong> @usuario["nombre"]</p>
+        <p><strong>Correo:</strong> @usuario["correo"]</p>
+        <p><strong>Rol:</strong> @usuario["rol"]</p>
+        <button class="btn btn-danger mt-3" @onclick="CerrarSesion">Cerrar sesión</button>
+    </div>
+}
+else
+{
+    <p>Cargando información del usuario...</p>
+}
+
+@code {
+    private const string PROYECTO = "proyecto";
+    private const string TABLA = "usuario";
+    private Dictionary<string, object>? usuario;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var correoUsuario = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "correoUsuario");
+
+        if (!string.IsNullOrEmpty(correoUsuario))
+        {
+            var usuarios = await servicioEntidad.ObtenerTodosAsync(PROYECTO, TABLA);
+            usuario = usuarios?.FirstOrDefault(u => u["correo"].ToString()?.ToLower() == correoUsuario.ToLower());
+        }
+    }
+
+    private async Task CerrarSesion()
+    {
+        await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "isAuthenticated");
+        await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "correoUsuario");
+        navegacionManager.NavigateTo("/");
+    }
+}

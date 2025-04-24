@@ -1,0 +1,57 @@
+@page "/"
+@using Services
+@layout Layout.LoginLayout
+@inject ServicioEntidad servicioEntidad
+@inject NavigationManager navegacionManager
+@inject IJSRuntime JSRuntime
+
+
+<h3>Iniciar Sesión</h3>
+
+@if (!string.IsNullOrEmpty(mensaje))
+{
+    <div class="alert alert-danger">@mensaje</div>
+}
+
+<div class="mb-3">
+    <label>Correo:</label>
+    <input class="form-control mb-2" @bind="correo" placeholder="ejemplo@correo.com" />
+
+    <label>Contraseña:</label>
+    <input type="password" class="form-control mb-2" @bind="contrasena" placeholder="Contraseña" />
+
+    <button class="btn btn-primary mt-2" @onclick="IniciarSesion">Iniciar sesión</button>
+</div>
+
+@code {
+    private const string PROYECTO = "proyecto";
+    private const string TABLA = "usuario";
+
+    private string correo = string.Empty;
+    private string contrasena = string.Empty;
+    private string mensaje = string.Empty;
+
+    private async Task IniciarSesion()
+    {
+        mensaje = string.Empty;
+
+        var usuarios = await servicioEntidad.ObtenerTodosAsync(PROYECTO, TABLA);
+
+        var usuarioEncontrado = usuarios?.FirstOrDefault(u =>
+            u["correo"].ToString()?.ToLower() == correo.ToLower() &&
+            u["contraseña"].ToString() == contrasena &&
+            u["estado"].ToString() == "True");
+
+        if (usuarioEncontrado != null)
+        {
+            await JSRuntime.InvokeVoidAsync("localStorage.setItem", "isAuthenticated", "true");
+            await JSRuntime.InvokeVoidAsync("localStorage.setItem", "correoUsuario", correo);
+
+            navegacionManager.NavigateTo("/home");
+        }
+        else
+        {
+            mensaje = "Correo o contraseña incorrectos, o usuario inactivo.";
+        }
+    }
+}
