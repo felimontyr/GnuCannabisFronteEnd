@@ -3,7 +3,7 @@
 @using Services
 @inject ServicioEntidad servicioEntidad
 @inject IJSRuntime JSRuntime
-@inject NavigationManager navegacionManager
+@inject NavigationManager navManager
 
 <AuthRedirect />  
 
@@ -14,7 +14,6 @@
     <div class="alert alert-info">@mensaje</div>
 }
 
-<!-- FORMULARIO CREACIÓN -->
 <div class="mb-3">
     <label for="nombre">Nombre:</label>
     <input id="nombre" class="form-control mb-2" @bind="nuevoNombre" placeholder="Nombre del cultivo" title="Nombre del cultivo" />
@@ -84,6 +83,7 @@ else
                 }
                 else
                 {
+                        var cultivoId = cultivo["id"].ToString();
                     <div>
                         <b>@cultivo["nombre"]</b> - @cultivo["ubicacion"]
                         - Inicio: @FormatFecha(cultivo["fecha_inicio"])
@@ -99,8 +99,13 @@ else
                             <text>Responsable: No asignado</text>
                         }
                         <br />
-                        <button class="btn btn-sm btn-primary me-2" @onclick="() => IniciarEdicion(cultivo)">Editar</button>
-                        <button class="btn btn-sm btn-danger" @onclick="() => EliminarCultivo(cultivo)">Eliminar</button>
+                        <button class="btn btn-outline-secondary btn-sm mt-1"
+                                @onclick="() => IrACultivoInventario(cultivoId)">
+                            Registrar insumos usados
+                        </button>
+                        <br />
+                        <button class="btn btn-sm btn-primary me-2 mt-2" @onclick="() => IniciarEdicion(cultivo)">Editar</button>
+                        <button class="btn btn-sm btn-danger mt-2" @onclick="() => EliminarCultivo(cultivo)">Eliminar</button>
                     </div>
                 }
             </li>
@@ -117,14 +122,12 @@ else
 
     private string mensaje = string.Empty;
 
-    // Crear
     private string nuevoNombre = string.Empty;
     private string nuevaUbicacion = string.Empty;
     private DateTime nuevaFechaInicio = DateTime.Today;
     private string nuevoEstado = string.Empty;
-    private string nuevoFkUsuario = string.Empty; // ID como string
+    private string nuevoFkUsuario = string.Empty; 
 
-    // Editar
     private string cultivoEditarId = string.Empty;
     private string cultivoEditarNombre = string.Empty;
     private string cultivoEditarUbicacion = string.Empty;
@@ -262,6 +265,11 @@ else
                 mensaje = "Error al eliminar cultivo.";
             }
         }
+    }
+
+    private void IrACultivoInventario(string idCultivo)
+    {
+        navManager.NavigateTo($"/cultivo/{idCultivo}/insumos");
     }
 
     private string FormatFecha(object? fecha)

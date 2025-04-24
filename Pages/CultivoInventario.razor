@@ -1,0 +1,236 @@
+@page "/cultivo/{id:int}/insumos"
+@using System.Collections.Generic
+@using Services
+@inject ServicioEntidad servicioEntidad
+@inject IJSRuntime JSRuntime
+@inject NavigationManager navegacionManager
+
+<h3>Gestión de Cultivo e Inventario</h3>
+
+@if (!string.IsNullOrEmpty(mensaje))
+{
+    <div class="alert alert-info">@mensaje</div>
+}
+
+<div class="mb-3">
+    <label>Cultivo:</label>
+    <select class="form-select mb-2" @bind="nuevoFkCultivo" title="Seleccione un cultivo">
+        <option value="">Seleccione un cultivo</option>
+        @foreach (var cultivo in cultivos)
+        {
+            <option value="@cultivo["id"]">@cultivo["nombre"]</option>
+        }
+    </select>
+
+    <label>Inventario:</label>
+    <select class="form-select mb-2" @bind="nuevoFkInventario" title="Seleccione un insumo del inventario">
+        <option value="">Seleccione un insumo</option>
+        @foreach (var item in inventario)
+        {
+            <option value="@item["id"]">@item["tipoInsumo"] - @item["cantidad"] unidades (Actualizado: @FormatFecha(item["fecha_actualizacion"]))</option>
+        }
+    </select>
+
+    <label for="cantidadUsadaNueva">Cantidad usada:</label>
+    <input id="cantidadUsadaNueva" type="number" class="form-control mb-2" @bind="nuevaCantidadUsada" placeholder="Cantidad usada" title="Cantidad usada" />
+
+    <button class="btn btn-success" @onclick="CrearCultivoInventario">Crear</button>
+</div>
+
+<h4>Relaciones actuales</h4>
+@if (cultivo_inventario.Count == 0)
+{
+    <p>No hay registros asociados.</p>
+}
+else
+{
+    <ul class="list-group">
+        @foreach (var relacion in cultivo_inventario)
+        {
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                @if (editandoRelacion != null &&
+                     relacion["cultivo_id"].ToString() == editandoRelacion["cultivo_id"].ToString() &&
+                     relacion["inventario_id"].ToString() == editandoRelacion["inventario_id"].ToString())
+                {
+                    <div style="flex: 1;">
+                        <label>Cantidad usada:</label>
+                        <input type="number" class="form-control mb-2" @bind="EditarCantidadUsada" title="Cantidad usada" />
+                        <button class="btn btn-success me-2" @onclick="GuardarEdicion">Guardar</button>
+                        <button class="btn btn-secondary" @onclick="CancelarEdicion">Cancelar</button>
+                    </div>
+                }
+                else
+                {
+                    var cultivo = cultivos.FirstOrDefault(c => c["id"].ToString() == relacion["cultivo_id"].ToString());
+                    var item = inventario.FirstOrDefault(i => i["id"].ToString() == relacion["inventario_id"].ToString());
+
+                    <span>
+                        <b>Cultivo:</b> @cultivo?["nombre"],
+                        <b>Insumo:</b> @item?["tipoInsumo"],
+                        <b>Usado:</b> @relacion["cantidad_usada"] unidades
+                    </span>
+                    <span>
+                        <button class="btn btn-primary btn-sm me-2" @onclick="() => IniciarEdicion(relacion)">Editar</button>
+                        <button class="btn btn-danger btn-sm" @onclick="() => EliminarRelacion(relacion)">Eliminar</button>
+                    </span>
+                }
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private const string PROYECTO = "proyecto";
+    private const string TABLA = "cultivo_inventario";
+
+    private List<Dictionary<string, object>> cultivo_inventario = new();
+    private List<Dictionary<string, object>> cultivos = new();
+    private List<Dictionary<string, object>> inventario = new();
+    
+    [Parameter]
+    public int id { get; set; }
+
+
+    private string mensaje = string.Empty;
+
+    private int nuevaCantidadUsada = 0;
+    private string nuevoFkCultivo = string.Empty;
+    private string nuevoFkInventario = string.Empty;
+
+    private int EditarCantidadUsada = 0;
+    private Dictionary<string, object>? editandoRelacion = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        cultivos = await servicioEntidad.ObtenerTodosAsync(PROYECTO, "cultivo") ?? new();
+        inventario = await servicioEntidad.ObtenerTodosAsync(PROYECTO, "inventario") ?? new();
+        if (id != 0)
+        {
+            nuevoFkCultivo = id.ToString();
+        }
+
+        await Obtenercultivo_inventario();
+    }
+
+    private async Task Obtenercultivo_inventario()
+    {
+        cultivo_inventario = await servicioEntidad.ObtenerTodosAsync(PROYECTO, TABLA) ?? new();
+    }
+
+    private async Task CrearCultivoInventario()
+    {
+        mensaje = string.Empty;
+
+        if (cultivo_inventario.Any(r =>
+            r["cultivo_id"].ToString() == nuevoFkCultivo &&
+            r["inventario_id"].ToString() == nuevoFkInventario))
+        {
+            mensaje = "La relación ya existe.";
+            return;
+        }
+
+        try
+        {
+            var parametros = new Dictionary<string, object>
+            {
+                { "nombreSP", "sp_insertar_Cultivo_Inventario" },
+                { "cultivo_id", int.Parse(nuevoFkCultivo) },
+                { "inventario_id", int.Parse(nuevoFkInventario) },
+                { "cantidad_usada", nuevaCantidadUsada }
+            };
+
+            var resultado = await servicioEntidad.EjecutarProcedimientoAsync(PROYECTO, TABLA, "sp_insertar_Cultivo_Inventario", parametros);
+
+            if (resultado != null)
+            {
+                mensaje = "Insumo asignado correctamente.";
+                nuevoFkCultivo = string.Empty;
+                nuevoFkInventario = string.Empty;
+                nuevaCantidadUsada = 0;
+                await Obtenercultivo_inventario();
+            }
+            else
+            {
+                mensaje = "Error al crear la relación.";
+            }
+        }
+        catch (Exception ex)
+        {
+            mensaje = $"Error crítico: {ex.Message}";
+        }
+    }
+
+    private void IniciarEdicion(Dictionary<string, object> relacion)
+    {
+        editandoRelacion = relacion;
+        EditarCantidadUsada = int.TryParse(relacion["cantidad_usada"]?.ToString(), out var cantidad) ? cantidad : 0;
+    }
+
+    private void CancelarEdicion()
+    {
+        editandoRelacion = null;
+    }
+
+    private async Task GuardarEdicion()
+    {
+        if (editandoRelacion == null) return;
+
+        var parametros = new Dictionary<string, object>
+        {
+            { "nombreSP", "sp_actualizar_Cultivo_Inventario" },
+            { "cultivo_id", int.Parse(editandoRelacion["cultivo_id"].ToString()) },
+            { "inventario_id", int.Parse(editandoRelacion["inventario_id"].ToString()) },
+            { "cantidad_usada", EditarCantidadUsada }
+        };
+
+        var resultado = await servicioEntidad.EjecutarProcedimientoAsync(PROYECTO, TABLA, "sp_actualizar_Cultivo_Inventario", parametros);
+
+        if (resultado != null)
+        {
+            mensaje = "Cantidad actualizada correctamente.";
+            await Obtenercultivo_inventario();
+            CancelarEdicion();
+        }
+        else
+        {
+            mensaje = "Error al actualizar la relación.";
+        }
+    }
+
+    private async Task EliminarRelacion(Dictionary<string, object> relacion)
+    {
+        bool confirmar = await JSRuntime.InvokeAsync<bool>("confirm", $"¿Deseas eliminar el insumo usado?");
+
+        if (!confirmar) return;
+
+        var parametros = new Dictionary<string, object>
+        {
+            { "nombreSP", "sp_eliminar_Cultivo_inventario" },
+            { "cultivo_id", int.Parse(relacion["cultivo_id"].ToString()) },
+            { "inventario_id", int.Parse(relacion["inventario_id"].ToString()) }
+        };
+
+        var resultado = await servicioEntidad.EjecutarProcedimientoAsync(PROYECTO, TABLA, "sp_eliminar_Cultivo_inventario", parametros);
+
+        if (resultado != null)
+        {
+            mensaje = "Relación eliminada correctamente.";
+            await Obtenercultivo_inventario();
+        }
+        else
+        {
+            mensaje = "Error al eliminar la relación.";
+        }
+    }
+
+    private string FormatFecha(object? fecha)
+    {
+        if (fecha is DateTime dt)
+            return dt.ToString("yyyy-MM-dd");
+
+        if (DateTime.TryParse(fecha?.ToString(), out var parsed))
+            return parsed.ToString("yyyy-MM-dd");
+
+        return "Fecha inválida";
+    }
+}

@@ -16,7 +16,13 @@
 
 <div class="mb-3">
     <label for="insumoNuevo">Tipo de insumo:</label>
-    <input id="insumoNuevo" class="form-control mb-2" @bind="nuevoTipoInsumo" placeholder="insumo" title="Tipo de insumo" />
+    <select id="insumoNuevo" class="form-select mb-2" @bind="nuevoTipoInsumo" title="Tipo de insumo">
+        <option value="">Seleccione un tipo</option>
+        @foreach (var tipo in tiposInsumo)
+        {
+            <option value="@tipo.Key">@tipo.Value</option>
+        }
+    </select>
 
     <label for="cantidadNueva">Cantidad:</label>
     <input id="cantidadNueva" type="number" class="form-control mb-2" @bind="nuevaCantidad" placeholder="cantidad" title="Cantidad del insumo" />
@@ -42,7 +48,13 @@ else
                 {
                     <div style="flex: 1;">
                         <label for="editarInsumo">Tipo de insumo:</label>
-                        <input id="editarInsumo" class="form-control mb-1" @bind="itemEditarTipoInsumo" placeholder="Ej. Alcohol" title="Tipo de insumo" />
+                        <select id="editarInsumo" class="form-select mb-1" @bind="itemEditarTipoInsumo" title="Tipo de insumo">
+                            <option value="">Seleccione un tipo</option>
+                            @foreach (var tipo in tiposInsumo)
+                            {
+                                <option value="@tipo.Key">@tipo.Value</option>
+                            }
+                        </select>
 
                         <label for="editarCantidad">Cantidad:</label>
                         <input id="editarCantidad" type="number" class="form-control mb-1" @bind="itemEditarCantidad" placeholder="Ej. 10" title="Cantidad del insumo" />
@@ -87,6 +99,14 @@ else
     private DateTime itemEditarFecha = DateTime.Today;
 
     private string? errorMensaje = null;
+
+    private Dictionary<string, string> tiposInsumo = new()
+    {
+        { "fosforo", "Fósforo" },
+        { "nitrogeno", "Nitrógeno" },
+        { "potasio", "Potasio" },
+        { "semilla", "Semilla" }
+    };
 
     protected override async Task OnInitializedAsync()
     {
@@ -157,7 +177,7 @@ else
         else
             itemEditarFecha = DateTime.Today;
 
-        StateHasChanged(); // 🔄 Forzar render inmediato si lo necesitas
+        StateHasChanged();
     }
 
     private void CancelarEdicion()
@@ -211,6 +231,6 @@ else
         if (DateTime.TryParse(fecha?.ToString(), out var parsed))
             return parsed.ToString("yyyy-MM-dd");
 
-        return "Fecha inválida";
+        return "Fecha incorrecta";
     }
 }

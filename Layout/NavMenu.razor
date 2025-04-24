@@ -5,7 +5,7 @@
     <div class="container-fluid">
         <!-- navbar-brand: estilo para el logo/nombre de la aplicación -->
         <!-- href="": enlace a la página de inicio -->
-        <a class="navbar-brand" href="/home">GNUcannabis</a>
+        <a class="navbar-brand" href="">GNUcannabis</a>
         
         <!-- Botón hamburguesa para mostrar/ocultar el menú en dispositivos móviles -->
         <!-- title: texto que aparece al pasar el cursor sobre el botón -->
@@ -31,16 +31,13 @@
             <!-- NavLink: componente especial de Blazor para navegación que resalta automáticamente la página actual -->
             <!-- href="": enlace a la ruta raíz -->
             <!-- Match="NavLinkMatch.All": solo se activa cuando la ruta es exactamente "/" -->
-            <NavLink class="nav-link" href="/home" Match="NavLinkMatch.All">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
                 <!-- Icono para la opción Home -->
                 <!-- bi bi-house-door-fill-nav-menu: clases para el icono de casa -->
                 <!-- aria-hidden="true": oculta el icono para lectores de pantalla -->
                 <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
             </NavLink>
         </div>
-        
-        
-    
 
 <div class="nav-item px-3">
     <NavLink class="nav-link" href="inventario">
@@ -61,8 +58,26 @@
 </div>
 
 <div class="nav-item px-3">
-    <NavLink class="nav-link" href="perfil">
-        <span class="oi oi-person" aria-hidden="true"></span> Perfil
+    <NavLink class="nav-link" href="planta">
+        <span class="oi oi-box" aria-hidden="true"></span> Planta
+    </NavLink>
+</div>
+
+<div class="nav-item px-3">
+    <NavLink class="nav-link" href="entrega">
+        <span class="oi oi-box" aria-hidden="true"></span> Entrega
+    </NavLink>
+</div>
+
+<div class="nav-item px-3">
+    <NavLink class="nav-link" href="reporte">
+        <span class="oi oi-box" aria-hidden="true"></span> Reporte
+    </NavLink>
+</div>
+
+<div class="nav-item px-3">
+    <NavLink class="nav-link" href="alertaInsumo">
+        <span class="oi oi-box" aria-hidden="true"></span> Alerta Insumo
     </NavLink>
 </div>
 

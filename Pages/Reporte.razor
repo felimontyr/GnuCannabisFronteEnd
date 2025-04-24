@@ -1,0 +1,226 @@
+@page "/reporte"
+@using System.Collections.Generic
+@using Services
+@inject ServicioEntidad servicioEntidad
+@inject IJSRuntime JSRuntime
+@inject NavigationManager navegacionManager
+
+<h3>Gestión de Reportes</h3>
+
+@if (!string.IsNullOrEmpty(mensaje))
+{
+    <div class="alert alert-info">@mensaje</div>
+}
+
+<div class="mb-3">
+    <label>Tipo:</label>
+    <input class="form-control mb-2" @bind="nuevoTipo" placeholder="Ej. Diagnóstico, Seguimiento" title="Tipo de reporte" />
+
+    <label>Fecha de generación:</label>
+    <input type="date" class="form-control mb-2" @bind="nuevaFecha" title="Fecha de generación" />
+
+    <label>Cultivo:</label>
+    <select class="form-select mb-2" @bind="nuevoFkCultivo" title="Seleccione un cultivo">
+        <option value="">Seleccione un cultivo</option>
+        @foreach (var cultivo in cultivos)
+        {
+            <option value="@cultivo["id"]">@cultivo["nombre"]</option>
+        }
+    </select>
+
+    <label>Descripción:</label>
+    <textarea class="form-control mb-2" @bind="nuevaDescripcion" rows="3" placeholder="Describa el reporte..." title="Descripción del reporte"></textarea>
+
+    <button class="btn btn-success" @onclick="CrearReporte">Crear</button>
+</div>
+
+<h4>Reportes existentes</h4>
+
+@if (reportes.Count == 0)
+{
+    <p>No hay reportes registrados.</p>
+}
+else
+{
+    <ul class="list-group">
+        @foreach (var reporte in reportes)
+        {
+            <li class="list-group-item">
+                @if (reporteEditarId == reporte["id"].ToString())
+                {
+                    <div>
+                        <label>Tipo:</label>
+                        <input class="form-control mb-1" @bind="reporteEditarTipo" title="Tipo de reporte" />
+
+                        <label>Fecha de generación:</label>
+                        <input type="date" class="form-control mb-1" @bind="reporteEditarFecha" title="Fecha" />
+
+                        <label>Cultivo:</label>
+                        <select class="form-select mb-1" @bind="reporteEditarFkCultivo" title="Cultivo">
+                            @foreach (var cultivo in cultivos)
+                            {
+                                <option value="@cultivo["id"]">@cultivo["nombre"]</option>
+                            }
+                        </select>
+
+                        <label>Descripción:</label>
+                        <textarea class="form-control mb-2" @bind="reporteEditarDescripcion" rows="2" title="Descripción"></textarea>
+
+                        <button class="btn btn-primary me-2" @onclick="() => GuardarEdicion(reporte)">Guardar</button>
+                        <button class="btn btn-secondary" @onclick="CancelarEdicion">Cancelar</button>
+                    </div>
+                }
+                else
+                {
+                    <div>
+                        <b>@reporte["tipo"]</b> - @FormatFecha(reporte["fecha_generacion"])
+                        <br />
+                        Cultivo: @cultivos.FirstOrDefault(c => c["id"].ToString() == reporte["cultivo_id"].ToString())?["nombre"]
+                        <br />
+                        Descripción: @reporte["descripcion"]
+                        <br />
+                        <button class="btn btn-sm btn-primary me-2" @onclick="() => IniciarEdicion(reporte)">Editar</button>
+                        <button class="btn btn-sm btn-danger" @onclick="() => EliminarReporte(reporte)">Eliminar</button>
+                    </div>
+                }
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private const string PROYECTO = "proyecto";
+    private const string TABLA = "reporte";
+
+    private List<Dictionary<string, object>> reportes = new();
+    private List<Dictionary<string, object>> cultivos = new();
+
+    private string mensaje = string.Empty;
+    private string nuevoTipo = string.Empty;
+    private DateTime nuevaFecha = DateTime.Today;
+    private string nuevaDescripcion = string.Empty;
+    private string nuevoFkCultivo = string.Empty;
+    private string reporteEditarId = string.Empty;
+    private string reporteEditarTipo = string.Empty;
+    private DateTime reporteEditarFecha = DateTime.Today;
+    private string reporteEditarDescripcion = string.Empty;
+    private string reporteEditarFkCultivo = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        cultivos = await servicioEntidad.ObtenerTodosAsync(PROYECTO, "cultivo") ?? new();
+        await ObtenerReportes();
+    }
+
+    private async Task ObtenerReportes()
+    {
+        reportes = await servicioEntidad.ObtenerTodosAsync(PROYECTO, TABLA) ?? new();
+    }
+
+    private async Task CrearReporte()
+    {
+        if (string.IsNullOrWhiteSpace(nuevoTipo) || string.IsNullOrWhiteSpace(nuevaDescripcion) || string.IsNullOrWhiteSpace(nuevoFkCultivo))
+        {
+            mensaje = "Todos los campos son obligatorios.";
+            return;
+        }
+
+        var nuevo = new Dictionary<string, object>
+        {
+            { "tipo", nuevoTipo },
+            { "fecha_generacion", nuevaFecha.ToString("yyyy-MM-dd HH:mm:ss") },
+            { "descripcion", nuevaDescripcion },
+            { "cultivo_id", int.Parse(nuevoFkCultivo) }
+        };
+
+        bool creado = await servicioEntidad.CrearAsync(PROYECTO, TABLA, nuevo);
+        if (creado)
+        {
+            mensaje = "Reporte creado correctamente.";
+            nuevoTipo = nuevaDescripcion = nuevoFkCultivo = string.Empty;
+            nuevaFecha = DateTime.Today;
+            await ObtenerReportes();
+        }
+        else
+        {
+            mensaje = "Error al crear el reporte.";
+        }
+    }
+
+    private void IniciarEdicion(Dictionary<string, object> reporte)
+    {
+        reporteEditarId = reporte["id"].ToString();
+        reporteEditarTipo = reporte["tipo"].ToString();
+        reporteEditarDescripcion = reporte["descripcion"].ToString();
+        reporteEditarFkCultivo = reporte["cultivo_id"].ToString();
+
+        if (reporte["fecha_generacion"] is DateTime dt)
+            reporteEditarFecha = dt;
+        else if (DateTime.TryParse(reporte["fecha_generacion"]?.ToString(), out var parsed))
+            reporteEditarFecha = parsed;
+        else
+            reporteEditarFecha = DateTime.Today;
+    }
+
+    private void CancelarEdicion()
+    {
+        reporteEditarId = string.Empty;
+    }
+
+    private async Task GuardarEdicion(Dictionary<string, object> reporte)
+    {
+        if (string.IsNullOrWhiteSpace(reporteEditarTipo) || string.IsNullOrWhiteSpace(reporteEditarDescripcion) || string.IsNullOrWhiteSpace(reporteEditarFkCultivo))
+        {
+            mensaje = "Debe completar todos los campos.";
+            return;
+        }
+
+        var actualizado = new Dictionary<string, object>
+        {
+            { "tipo", reporteEditarTipo },
+            { "fecha_generacion", reporteEditarFecha.ToString("yyyy-MM-dd HH:mm:ss") },
+            { "descripcion", reporteEditarDescripcion },
+            { "cultivo_id", int.Parse(reporteEditarFkCultivo) }
+        };
+
+        bool resultado = await servicioEntidad.ActualizarAsync(PROYECTO, TABLA, "id", reporte["id"].ToString(), actualizado);
+        if (resultado)
+        {
+            mensaje = "Reporte actualizado.";
+            CancelarEdicion();
+            await ObtenerReportes();
+        }
+        else
+        {
+            mensaje = "Error al actualizar el reporte.";
+        }
+    }
+
+    private async Task EliminarReporte(Dictionary<string, object> reporte)
+    {
+        bool confirmar = await JSRuntime.InvokeAsync<bool>("confirm", $"¿Eliminar el reporte '{reporte["tipo"]}'?");
+        if (!confirmar) return;
+
+        bool eliminado = await servicioEntidad.EliminarAsync(PROYECTO, TABLA, "id", reporte["id"].ToString());
+        if (eliminado)
+        {
+            mensaje = "Reporte eliminado.";
+            await ObtenerReportes();
+        }
+        else
+        {
+            mensaje = "Error al eliminar el reporte.";
+        }
+    }
+
+    private string FormatFecha(object? fecha)
+    {
+        if (fecha is DateTime dt)
+            return dt.ToString("yyyy-MM-dd");
+
+        if (DateTime.TryParse(fecha?.ToString(), out var parsed))
+            return parsed.ToString("yyyy-MM-dd");
+
+        return "Fecha inválida";
+    }
+}
